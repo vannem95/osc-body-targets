@@ -1,0 +1,83 @@
+"""
+    Operational Space Controller Module
+"""
+module(
+    name = "operational-space-controller",
+)
+
+# cc rules:
+bazel_dep(name = "rules_cc", version = "0.0.2")
+
+# Abseil Cpp:
+bazel_dep(name = "abseil-cpp", version = "20250127.0")
+
+# Eigen:
+bazel_dep(name = "eigen", version = "4.0.0-20241125.bcr.1")
+
+# OSQP Cpp Wrapper:
+bazel_dep(name = "osqp-cpp", version = "0.0.0-20231004-4343373.bcr.1")
+
+# OSQP: (explicit instead of transitive from osqp-cpp)
+bazel_dep(name = "osqp", version = "0.6.3.bcr.2")
+
+# MoJoCo:
+bazel_dep(name = "mujoco-bazel")
+archive_override(
+    module_name = "mujoco-bazel",
+    strip_prefix = "mujoco-bazel-main",
+    urls = ["https://github.com/jeh15/mujoco-bazel/archive/refs/heads/main.zip"],
+    integrity = "sha256-GWLqAiunkC0Pfx61ayaQoPrC62O02tnh2gqM9z2Wm/o=",
+)
+
+# Mujoco Models:
+bazel_dep(name = "mujoco-models")
+archive_override(
+    module_name = "mujoco-models",
+    strip_prefix = "mujoco-models-main",
+    urls = ["https://github.com/vannem95/mujoco-models/archive/refs/heads/main.zip"]
+)
+
+
+# GLFW: (Visualize MuJoCo simulations)
+bazel_dep(name = "glfw-bazel")
+archive_override(
+    module_name = "glfw-bazel",
+    strip_prefix = "glfw-bazel-main",
+    urls = ["https://github.com/jeh15/glfw-bazel/archive/refs/heads/main.zip"],
+    integrity = "sha256-Gk5anHk3IXzREPrUpyYPweB9J0fAdbMt5Hlu5VCYTO0=",
+)
+
+# Python Rules:
+bazel_dep(name = "rules_python", version = "1.0.0")
+
+# Pybind11:
+bazel_dep(name = "pybind11_bazel", version = "2.13.6")
+
+# Skylib:
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
+
+# Hedron's Compile Commands Extractor for Bazel
+# https://github.com/hedronvision/bazel-compile-commands-extractor
+bazel_dep(name = "hedron_compile_commands", dev_dependency = True)
+git_override(
+    module_name = "hedron_compile_commands",
+    remote = "https://github.com/mikael-s-persson/bazel-compile-commands-extractor",
+    commit = "f5fbd4cee671d8d908f37c83abaf70fba5928fc7"
+)
+
+# Python Toolchain:
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(
+    configure_coverage_tool = True,
+    python_version = "3.12",
+)
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    download_only = True,
+    hub_name = "pypi_operational-space-controller",
+    # We need to use the same version here as in the `python.toolchain` call.
+    python_version = "3.12",
+    requirements_lock = "//:requirements_lock.txt",
+)
+use_repo(pip, "pypi_operational-space-controller")

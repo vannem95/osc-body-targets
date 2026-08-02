@@ -1,0 +1,5 @@
+filegroup(
+    name = "walter_sr_config",
+    srcs = ['walter_sr_config.yaml'],
+    visibility = ["//visibility:public"],
+)

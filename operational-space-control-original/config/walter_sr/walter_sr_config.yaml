@@ -1,0 +1,297 @@
+body_list:
+  - torso
+  - torso_left_shin
+  - torso_right_shin
+  - head_left_shin
+  - head_right_shin
+  - torso_left_thigh
+  - torso_right_thigh
+  - head_left_thigh
+  - head_right_thigh
+  - torso_left_front_wheel
+  - torso_left_rear_wheel
+  - torso_right_front_wheel
+  - torso_right_rear_wheel
+  - head_left_front_wheel
+  - head_left_rear_wheel
+  - head_right_front_wheel
+  - head_right_rear_wheel
+
+noncontact_site_list:
+  - torso_site
+  - tl_shin_site
+  - tr_shin_site
+  - hl_shin_site
+  - hr_shin_site
+  - tl_thigh_site
+  - tr_thigh_site
+  - hl_thigh_site
+  - hr_thigh_site
+
+contact_site_list:
+  - tlf_wheel_site
+  - tlr_wheel_site
+  - trf_wheel_site
+  - trr_wheel_site
+  - hlf_wheel_site
+  - hlr_wheel_site
+  - hrf_wheel_site
+  - hrr_wheel_site
+
+friction_coefficient: 1.0
+
+weights_config:
+  torso_translational_tracking: 0.0
+  torso_rotational_tracking: 0.0
+
+# tumbling light
+  # tls_translational_tracking: 0.0
+  # tls_rotational_tracking: 300.0
+  # trs_translational_tracking: 0.0
+  # trs_rotational_tracking: 300.0
+  # hls_translational_tracking: 0.0
+  # hls_rotational_tracking: 300.0
+  # hrs_translational_tracking: 0.0
+  # hrs_rotational_tracking: 300.0
+
+  # MAIN ------------------------------------
+  # tls_translational_tracking: 0.0
+  # tls_rotational_tracking: 1.0
+  # trs_translational_tracking: 0.0
+  # trs_rotational_tracking: 1.0
+  # hls_translational_tracking: 0.0
+  # hls_rotational_tracking: 1.0
+  # hrs_translational_tracking: 0.0
+  # hrs_rotational_tracking: 1.0
+
+
+  tls_translational_tracking: 0.0
+  tls_rotational_tracking: 0.1
+  trs_translational_tracking: 0.0
+  trs_rotational_tracking: 0.1
+  hls_translational_tracking: 0.0
+  hls_rotational_tracking: 0.1
+  hrs_translational_tracking: 0.0
+  hrs_rotational_tracking: 0.1
+
+  # height control --------------------------
+  # tls_translational_tracking: 0.0
+  # tls_rotational_tracking: 0.0
+  # trs_translational_tracking: 0.0
+  # trs_rotational_tracking: 0.0
+  # hls_translational_tracking: 0.0
+  # hls_rotational_tracking: 0.0
+  # hrs_translational_tracking: 0.0
+  # hrs_rotational_tracking: 0.0
+
+# air
+  # tls_translational_tracking: 0.0
+  # tls_rotational_tracking: 30000.0
+  # trs_translational_tracking: 0.0
+  # trs_rotational_tracking: 30000.0
+  # hls_translational_tracking: 0.0
+  # hls_rotational_tracking: 30000.0
+  # hrs_translational_tracking: 0.0
+  # hrs_rotational_tracking: 30000.0
+
+  # hrs_rotational_tracking: 300000.0
+  # hrs_rotational_tracking: 300.0
+
+  # tlh_translational_tracking: 5000.0
+  # tlh_rotational_tracking: 100.0
+  # trh_translational_tracking: 5000.0
+  # trh_rotational_tracking: 100.0
+  # hlh_translational_tracking: 5000.0
+  # hlh_rotational_tracking: 100.0
+  # hrh_translational_tracking: 5000.0
+  # hrh_rotational_tracking: 100.0
+
+
+  # tlh_translational_tracking: 800.0
+  # tlh_rotational_tracking: 0.0
+  # trh_translational_tracking: 800.0
+  # trh_rotational_tracking: 0.0
+  # hlh_translational_tracking: 800.0
+  # hlh_rotational_tracking: 0.0
+  # hrh_translational_tracking: 800.0
+  # hrh_rotational_tracking: 0.0
+
+# air
+  # tlh_translational_tracking: 0.0
+  # tlh_rotational_tracking: 100.0
+  # trh_translational_tracking: 0.0
+  # trh_rotational_tracking: 100.0
+  # hlh_translational_tracking: 0.0
+  # hlh_rotational_tracking: 100.0
+  # hrh_translational_tracking: 0.0
+  # hrh_rotational_tracking: 100.0
+
+# tumbling_mjjoint
+  # tlh_translational_tracking: 0.0
+  # tlh_rotational_tracking: 0.0
+  # trh_translational_tracking: 0.0
+  # trh_rotational_tracking: 0.0
+  # hlh_translational_tracking: 0.0
+  # hlh_rotational_tracking: 0.0
+  # hrh_translational_tracking: 0.0
+  # hrh_rotational_tracking: 0.0
+
+  # tlh_translational_tracking: 1.0
+  # tlh_rotational_tracking: 0.0
+  # trh_translational_tracking: 1.0
+  # trh_rotational_tracking: 0.0
+  # hlh_translational_tracking: 1.0
+  # hlh_rotational_tracking: 0.0
+  # hrh_translational_tracking: 1.0
+  # hrh_rotational_tracking: 0.0
+
+  tlh_translational_tracking: 0.1
+  tlh_rotational_tracking: 0.0
+  trh_translational_tracking: 0.1
+  trh_rotational_tracking: 0.0
+  hlh_translational_tracking: 0.1
+  hlh_rotational_tracking: 0.0
+  hrh_translational_tracking: 0.1
+  hrh_rotational_tracking: 0.0
+
+
+# thigh pitch test
+  # tlh_translational_tracking: 10.0
+  # tlh_rotational_tracking: 10.0  # CHANGED FROM 0.0
+  # trh_translational_tracking: 10.0
+  # trh_rotational_tracking: 10.0  # CHANGED FROM 0.0
+  # hlh_translational_tracking: 10.0
+  # hlh_rotational_tracking: 10.0  # CHANGED FROM 0.0
+  # hrh_translational_tracking: 10.0
+  # hrh_rotational_tracking: 10.0  # CHANGED FROM 0.0
+
+
+
+
+  # tlf_translational_tracking: 0.0
+  # tlf_rotational_tracking: 0.0
+  # tlr_translational_tracking: 0.0
+  # tlr_rotational_tracking: 0.0
+  # trf_translational_tracking: 0.0
+  # trf_rotational_tracking: 0.0
+  # trr_translational_tracking: 0.0
+  # trr_rotational_tracking: 0.0
+  # hlf_translational_tracking: 0.0
+  # hlf_rotational_tracking: 0.0
+  # hlr_translational_tracking: 0.0
+  # hlr_rotational_tracking: 0.0
+  # hrf_translational_tracking: 0.0
+  # hrf_rotational_tracking: 0.0
+  # hrr_translational_tracking: 0.0
+  # hrr_rotational_tracking: 0.0
+
+  # tlf_translational_tracking: 10.0
+  # tlf_rotational_tracking: 10.0
+  # tlr_translational_tracking: 10.0
+  # tlr_rotational_tracking: 10.0
+  # trf_translational_tracking: 10.0
+  # trf_rotational_tracking: 10.0
+  # trr_translational_tracking: 10.0
+  # trr_rotational_tracking: 10.0
+  # hlf_translational_tracking: 10.0
+  # hlf_rotational_tracking: 10.0
+  # hlr_translational_tracking: 10.0
+  # hlr_rotational_tracking: 10.0
+  # hrf_translational_tracking: 10.0
+  # hrf_rotational_tracking: 10.0
+  # hrr_translational_tracking: 10.0
+  # hrr_rotational_tracking: 10.0
+
+  tlf_translational_tracking: 1.0e-1
+  tlf_rotational_tracking: 1.0e-1
+  tlr_translational_tracking: 1.0e-1
+  tlr_rotational_tracking: 1.0e-1
+  trf_translational_tracking: 1.0e-1
+  trf_rotational_tracking: 1.0e-1
+  trr_translational_tracking: 1.0e-1
+  trr_rotational_tracking: 1.0e-1
+  hlf_translational_tracking: 1.0e-1
+  hlf_rotational_tracking: 1.0e-1
+  hlr_translational_tracking: 1.0e-1
+  hlr_rotational_tracking: 1.0e-1
+  hrf_translational_tracking: 1.0e-1
+  hrf_rotational_tracking: 1.0e-1
+  hrr_translational_tracking: 1.0e-1
+  hrr_rotational_tracking: 1.0e-1
+
+  # tlf_translational_tracking: 1.0e-6
+  # tlf_rotational_tracking: 1.0e-6
+  # tlr_translational_tracking: 1.0e-6
+  # tlr_rotational_tracking: 1.0e-6
+  # trf_translational_tracking: 1.0e-6
+  # trf_rotational_tracking: 1.0e-6
+  # trr_translational_tracking: 1.0e-6
+  # trr_rotational_tracking: 1.0e-6
+  # hlf_translational_tracking: 1.0e-6
+  # hlf_rotational_tracking: 1.0e-6
+  # hlr_translational_tracking: 1.0e-6
+  # hlr_rotational_tracking: 1.0e-6
+  # hrf_translational_tracking: 1.0e-6
+  # hrf_rotational_tracking: 1.0e-6
+  # hrr_translational_tracking: 1.0e-6
+  # hrr_rotational_tracking: 1.0e-6
+
+  # tlf_translational_tracking: 1.0e-3
+  # tlf_rotational_tracking: 1.0e-3
+  # tlr_translational_tracking: 1.0e-3
+  # tlr_rotational_tracking: 1.0e-3
+  # trf_translational_tracking: 1.0e-3
+  # trf_rotational_tracking: 1.0e-3
+  # trr_translational_tracking: 1.0e-3
+  # trr_rotational_tracking: 1.0e-3
+  # hlf_translational_tracking: 1.0e-3
+  # hlf_rotational_tracking: 1.0e-3
+  # hlr_translational_tracking: 1.0e-3
+  # hlr_rotational_tracking: 1.0e-3
+  # hrf_translational_tracking: 1.0e-3
+  # hrf_rotational_tracking: 1.0e-3
+  # hrr_translational_tracking: 1.0e-3
+  # hrr_rotational_tracking: 1.0e-3
+
+  # tlf_translational_tracking: 1.0
+  # tlf_rotational_tracking: 1.0
+  # tlr_translational_tracking: 1.0
+  # tlr_rotational_tracking: 1.0
+  # trf_translational_tracking: 1.0
+  # trf_rotational_tracking: 1.0
+  # trr_translational_tracking: 1.0
+  # trr_rotational_tracking: 1.0
+  # hlf_translational_tracking: 1.0
+  # hlf_rotational_tracking: 1.0
+  # hlr_translational_tracking: 1.0
+  # hlr_rotational_tracking: 1.0
+  # hrf_translational_tracking: 1.0
+  # hrf_rotational_tracking: 1.0
+  # hrr_translational_tracking: 1.0
+  # hrr_rotational_tracking: 1.0  
+
+  # tlf_translational_tracking: 10.0
+  # tlf_rotational_tracking: 10.0
+  # tlr_translational_tracking: 10.0
+  # tlr_rotational_tracking: 10.0
+  # trf_translational_tracking: 10.0
+  # trf_rotational_tracking: 10.0
+  # trr_translational_tracking: 10.0
+  # trr_rotational_tracking: 10.0
+  # hlf_translational_tracking: 10.0
+  # hlf_rotational_tracking: 10.0
+  # hlr_translational_tracking: 10.0
+  # hlr_rotational_tracking: 10.0
+  # hrf_translational_tracking: 10.0
+  # hrf_rotational_tracking: 10.0
+  # hrr_translational_tracking: 10.0
+  # hrr_rotational_tracking: 10.0
+
+
+  # torque: 1.0e-6
+  # regularization: 1.0e-4  
+  regularization: 0.0  
+
+  torque: 0.0
+  # torque: 1.0e-1
+  # regularization: 0.0

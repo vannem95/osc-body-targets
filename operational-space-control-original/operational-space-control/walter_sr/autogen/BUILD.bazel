@@ -1,0 +1,44 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+py_binary(
+    name = "autogen",
+    srcs = ["autogen.py"],
+    data = [
+        "@mujoco-models//:walter_sr",
+        "//config/walter_sr:walter_sr_config",
+    ],
+    deps = [
+        "@rules_python//python/runfiles",
+        "@pypi_operational-space-controller//mujoco:pkg",
+        "@pypi_operational-space-controller//casadi:pkg",
+        "@pypi_operational-space-controller//absl_py:pkg",
+        "@pypi_operational-space-controller//pyyaml:pkg",
+    ],
+)
+
+genrule(
+    name = "autogen_rule",
+    srcs = [
+        "@mujoco-models//:walter_sr",
+        "//config/walter_sr:walter_sr_config",
+    ],
+    tools = [":autogen"],
+    outs = ["autogen_functions.cc", "autogen_functions.h", "autogen_defines.h"],
+    cmd = "$(location :autogen) --filepath=$(RULEDIR)",
+)
+
+cc_library(
+    name = "autogen_functions_cc",
+    srcs = ["autogen_functions.cc"],
+    hdrs = ["autogen_functions.h"],
+    deps = [":autogen_rule"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "autogen_defines_cc",
+    srcs = ["autogen_defines.h"],
+    deps = [":autogen_rule"],
+    visibility = ["//visibility:public"],
+)

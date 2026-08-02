@@ -1,0 +1,57 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "aliases",
+    srcs = ["aliases.h"],
+    deps = ["@eigen//:eigen"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "constants",
+    srcs = ["constants.h"],
+    deps = ["//operational-space-control/walter_sr/autogen:autogen_defines_cc"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "containers",
+    srcs = ["containers.h"],
+    deps = [
+        ":aliases",
+        ":constants",
+        "//operational-space-control/walter_sr/autogen:autogen_defines_cc",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "operational_space_controller",
+    srcs = ["operational_space_controller.h"],
+    deps = [
+        ":aliases",
+        ":constants",
+        ":containers",
+        ":utilities",
+        "//operational-space-control:utilities",
+        "//operational-space-control/walter_sr/autogen:autogen_functions_cc",
+        "//operational-space-control/walter_sr/autogen:autogen_defines_cc",
+        "@mujoco-bazel//:mujoco",
+        "@eigen//:eigen",
+        "@osqp-cpp//:osqp++",
+        "@osqp//:osqp",
+        "@abseil-cpp//absl/log:absl_check",
+        "@abseil-cpp//absl/status:status",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "utilities",
+    srcs = ["utilities.h"],
+    deps = [
+        "//operational-space-control/walter_sr/autogen:autogen_functions_cc",
+        "@eigen//:eigen",
+    ],
+    visibility = ["//visibility:public"],
+)
