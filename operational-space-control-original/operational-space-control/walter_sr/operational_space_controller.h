@@ -834,20 +834,20 @@ class OperationalSpaceController {
                     if (knee_joint_id != -1) {
                         int dof_idx = mj_model->jnt_dofadr[knee_joint_id];
                         
-                        std::cout << "\n--- DYNAMIC FORCES (DOF " << dof_idx << ") ---" << std::endl;
+                        // std::cout << "\n--- DYNAMIC FORCES (DOF " << dof_idx << ") ---" << std::endl;
                         
-                        // This is Gravity + Coriolis + Centrifugal
-                        std::cout << "qfrc_bias (Gravity/Coriolis): " << qfrc_bias_eigen(dof_idx) << std::endl;
+                        // // This is Gravity + Coriolis + Centrifugal
+                        // std::cout << "qfrc_bias (Gravity/Coriolis): " << qfrc_bias_eigen(dof_idx) << std::endl;
                         
-                        // This is Damping + Joint Friction + Springs
-                        std::cout << "qfrc_passive (Damping/Friction): " << qfrc_passive_eigen(dof_idx) << std::endl;
+                        // // This is Damping + Joint Friction + Springs
+                        // std::cout << "qfrc_passive (Damping/Friction): " << qfrc_passive_eigen(dof_idx) << std::endl;
                         
-                        // This is what you were feeding to the QP solver
-                        std::cout << "Combined Controller Input: " << qfrc_bias_eigen(dof_idx) - qfrc_passive_eigen(dof_idx) << std::endl;
+                        // // This is what you were feeding to the QP solver
+                        // std::cout << "Combined Controller Input: " << qfrc_bias_eigen(dof_idx) - qfrc_passive_eigen(dof_idx) << std::endl;
                         
-                        // Optional: Print the total magnitude across the whole robot to see if passive exists anywhere
-                        std::cout << "Full Robot Passive Norm: " << qfrc_passive_eigen.norm() << std::endl;
-                        std::cout << "----------------------------------" << std::endl;
+                        // // Optional: Print the total magnitude across the whole robot to see if passive exists anywhere
+                        // std::cout << "Full Robot Passive Norm: " << qfrc_passive_eigen.norm() << std::endl;
+                        // std::cout << "----------------------------------" << std::endl;
                     }
                 }                
 

@@ -41,8 +41,8 @@ contact_site_list:
 friction_coefficient: 1.0
 
 weights_config:
-  torso_translational_tracking: 0.0
-  torso_rotational_tracking: 0.0
+  torso_translational_tracking: 0.1
+  torso_rotational_tracking: 0.1
 
 # tumbling light
   # tls_translational_tracking: 0.0
@@ -66,13 +66,13 @@ weights_config:
 
 
   tls_translational_tracking: 0.0
-  tls_rotational_tracking: 0.1
+  tls_rotational_tracking: 0.0
   trs_translational_tracking: 0.0
-  trs_rotational_tracking: 0.1
+  trs_rotational_tracking: 0.0
   hls_translational_tracking: 0.0
-  hls_rotational_tracking: 0.1
+  hls_rotational_tracking: 0.0
   hrs_translational_tracking: 0.0
-  hrs_rotational_tracking: 0.1
+  hrs_rotational_tracking: 0.0
 
   # height control --------------------------
   # tls_translational_tracking: 0.0

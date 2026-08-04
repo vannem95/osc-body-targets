@@ -162,7 +162,7 @@ int main(int argc, char** argv) {
         runfiles->Rlocation("mujoco-models/models/walter_sr/WaLTER_Senior_updated_noda.xml");
     
     std::filesystem::path simulation_model_path = 
-        runfiles->Rlocation("mujoco-models/models/walter_sr/walter_noda_tiles_scene.xml");
+        runfiles->Rlocation("mujoco-models/models/walter_sr/scene_walter_sr_updated_noda_stairs.xml");
 
     // Load Simulation Model
     char mj_error[1000];
@@ -174,7 +174,7 @@ int main(int argc, char** argv) {
     mjData* mj_data = mj_makeData(mj_model);
 
     // Reset Data to match Keyframe 2
-    mj_resetDataKeyframe(mj_model, mj_data, 4);
+    mj_resetDataKeyframe(mj_model, mj_data, 3);
     mj_forward(mj_model, mj_data);
 
 

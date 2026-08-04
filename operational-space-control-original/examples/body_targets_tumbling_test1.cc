@@ -13,6 +13,7 @@
 #include <iomanip>
 #include <string>
 #include <cstdio>
+#include <deque>
 #include "absl/status/status.h"
 #include "absl/log/absl_check.h"
 #include "rules_cc/cc/runfiles/runfiles.h"
@@ -76,6 +77,186 @@ public:
         std::cout << "Data saved to " << filename << " (" << rows << " rows)" << std::endl;
     }
 };
+
+
+
+
+// -----------------------------------------------------------------------------------------------------
+
+/**
+ * @class TelemetryVisualizer
+ * @brief Generic visualizer for rendering real-time dual-line telemetry in MuJoCo.
+ * 
+ * Manages a dynamic number of plots, each rendering exactly two data streams against time.
+ * Automatically handles memory buffering and scales viewports based on the number of active plots.
+ */
+class TelemetryVisualizer {
+private:
+    struct PlotContext {
+        mjvFigure fig;
+        std::deque<float> time_buf;
+        std::deque<float> line1_buf;
+        std::deque<float> line2_buf;
+    };
+
+    size_t max_history_;
+    std::vector<PlotContext> plots_;
+
+public:
+    /**
+     * @brief Construct a new Telemetry Visualizer object.
+     * @param max_history Maximum number of data points to retain in memory.
+     */
+    TelemetryVisualizer(size_t max_history = 1000) 
+        : max_history_(max_history) {}
+
+    /**
+     * @brief Initializes a new 2-line plot and returns its index.
+     * 
+     * @param title Title of the plot.
+     * @param line1_name Legend name for the first data stream (Red).
+     * @param line2_name Legend name for the second data stream (Green).
+     * @param y_min Minimum value for the Y-axis.
+     * @param y_max Maximum value for the Y-axis.
+     * @return size_t The integer index used to update this specific plot later.
+     */
+    size_t addPlot(const std::string& title, 
+                   const std::string& line1_name, 
+                   const std::string& line2_name, 
+                   float y_min, float y_max) {
+        
+        PlotContext ctx;
+        mjv_defaultFigure(&ctx.fig);
+        
+        ctx.fig.flg_extend = 0;
+
+        // Configure text and labels safely for C-style arrays
+        strncpy(ctx.fig.title, title.c_str(), sizeof(ctx.fig.title) - 1);
+        strncpy(ctx.fig.xlabel, "Time (s)", sizeof(ctx.fig.xlabel) - 1);
+        
+        strncpy(ctx.fig.linename[0], line1_name.c_str(), sizeof(ctx.fig.linename[0]) - 1);
+        strncpy(ctx.fig.linename[1], line2_name.c_str(), sizeof(ctx.fig.linename[1]) - 1);
+        
+        // Configure standard contrasting colors
+        ctx.fig.linergb[0][0]=1.0f; ctx.fig.linergb[0][1]=0.0f; ctx.fig.linergb[0][2]=0.0f; // Red
+        ctx.fig.linergb[1][0]=0.0f; ctx.fig.linergb[1][1]=1.0f; ctx.fig.linergb[1][2]=0.0f; // Green
+        
+        // Lock Y-axis bounds
+        ctx.fig.range[1][0] = y_min; 
+        ctx.fig.range[1][1] = y_max;
+
+        plots_.push_back(std::move(ctx));
+        return plots_.size() - 1;
+    }
+
+    /**
+     * @brief Pushes a new frame of data to a specific plot.
+     * 
+     * @param plot_idx The index of the plot (returned by addPlot).
+     * @param time Current simulation time.
+     * @param val1 Value for the first line.
+     * @param val2 Value for the second line.
+     */
+    void updateData(size_t plot_idx, double time, double val1, double val2) {
+        if (plot_idx >= plots_.size()) return;
+        
+        PlotContext& plot = plots_[plot_idx];
+        
+        pushToBuffer(plot.time_buf, static_cast<float>(time));
+        pushToBuffer(plot.line1_buf, static_cast<float>(val1));
+        pushToBuffer(plot.line2_buf, static_cast<float>(val2));
+    }
+
+    /**
+     * @brief Renders all registered plots to the GLFW window context.
+     * 
+     * @param window Pointer to the active GLFW window.
+     * @param con Pointer to the MuJoCo OpenGL context.
+     */
+    void render(GLFWwindow* window, mjrContext* con) {
+        if (plots_.empty()) return;
+
+        for (auto& plot : plots_) {
+            if (plot.time_buf.empty()) continue;
+            populateLineData(plot);
+            updateXAxisRange(plot);
+        }
+
+        drawViewports(window, con);
+    }
+
+private:
+    /**
+     * @brief Helper to manage fixed-size circular buffers.
+     */
+    void pushToBuffer(std::deque<float>& buffer, float val) {
+        buffer.push_back(val);
+        if (buffer.size() > max_history_) {
+            buffer.pop_front();
+        }
+    }
+
+    /**
+     * @brief Maps deque data into MuJoCo's C-style float arrays for rendering.
+     */
+    void populateLineData(PlotContext& plot) {
+        int count = plot.time_buf.size();
+        for (int k = 0; k < count; ++k) {
+            // Line 0
+            plot.fig.linedata[0][2*k]   = plot.time_buf[k];
+            plot.fig.linedata[0][2*k+1] = plot.line1_buf[k];
+            
+            // Line 1
+            plot.fig.linedata[1][2*k]   = plot.time_buf[k];
+            plot.fig.linedata[1][2*k+1] = plot.line2_buf[k];
+        }
+        plot.fig.linepnt[0] = count;
+        plot.fig.linepnt[1] = count;
+    }
+
+    /**
+     * @brief Creates a scrolling X-axis window showing the last 5 seconds.
+     */
+    void updateXAxisRange(PlotContext& plot) {
+        float current_time = plot.time_buf.back();
+        // Change this value to adjust your X-axis limits (e.g., 10.0f for a 10-second view)
+        float x_axis_window = 2.0f; 
+        
+        float min_t = std::max(0.0f, current_time - x_axis_window);
+        float max_t = std::max(x_axis_window, current_time);
+
+        plot.fig.range[0][0] = min_t; 
+        plot.fig.range[0][1] = max_t;
+    }
+
+    /**
+     * @brief Automatically stacks plots vertically on the right side of the screen.
+     */
+    void drawViewports(GLFWwindow* window, mjrContext* con) {
+        mjrRect viewport_full = {0, 0, 0, 0};
+        glfwGetFramebufferSize(window, &viewport_full.width, &viewport_full.height);
+
+        int plot_width = viewport_full.width / 3; // Occupy right 33% of the window
+        int num_plots = plots_.size();
+        int plot_height = viewport_full.height / num_plots;
+
+        for (int i = 0; i < num_plots; ++i) {
+            // Calculate vertically stacked layout (bottom-up rendering in OpenGL)
+            mjrRect viewport_plot = {
+                viewport_full.width - plot_width, 
+                viewport_full.height - (i + 1) * plot_height, 
+                plot_width, 
+                plot_height
+            };
+            mjr_figure(viewport_plot, &plots_[i].fig, con);
+        }
+    }
+};
+// -----------------------------------------------------------------------------------------------------
+
+
+
+
 
 //  Function to estimate hip height kinematically
 double get_propeller_leg_height(
@@ -156,8 +337,8 @@ int main(int argc, char** argv) {
     }
     mjData* mj_data = mj_makeData(mj_model);
 
-    // Select the correct keyframe/starting position of the robot
-    mj_resetDataKeyframe(mj_model, mj_data, 8);
+    // Select the correct keyframe/starting position of the robot (originally 8)
+    mj_resetDataKeyframe(mj_model, mj_data, 9);
 
     // Runs forward dynamics and updates the variables after keyframe update
     mj_forward(mj_model, mj_data);
@@ -198,7 +379,7 @@ int main(int argc, char** argv) {
     OperationalSpaceController controller(osc_model_path);
 
     // Set video record option and create object to store
-    bool vid_record_flag = false;
+    bool vid_record_flag = true;
     FILE* ffmpeg_pipe = nullptr;
     unsigned char* rgb_buffer = nullptr;
     if (vid_record_flag){
@@ -206,7 +387,7 @@ int main(int argc, char** argv) {
         std::string ffmpeg_cmd = "ffmpeg -y -f rawvideo -pixel_format rgb24 -video_size " + 
                                     std::to_string(win_width) + "x" + std::to_string(win_height) + 
                                     " -framerate " + std::to_string(fps) + 
-                                    " -i - -vf vflip -c:v h264_nvenc -preset hq -b:v 10M -pix_fmt yuv420p /home/vivek/sim_comp.mp4";    
+                                    " -i - -vf vflip -c:v h264_nvenc -preset hq -b:v 10M -pix_fmt yuv420p /home/vivek/body_targets_test1.mp4";    
         ffmpeg_pipe = popen(ffmpeg_cmd.c_str(), "w");
         if (!ffmpeg_pipe) {
             std::cerr << "Failed to open FFmpeg pipe." << std::endl;
@@ -252,7 +433,7 @@ int main(int argc, char** argv) {
     double last_time = current_time;
 
     // Set total sim time
-    double simulation_time = 15.0;        
+    double simulation_time = 30.0; // originally 15       
 
 
     // Functions to get indexes so we don't use hardcoded numbers
@@ -393,6 +574,20 @@ int main(int argc, char** argv) {
     // Initializing variable
     Vector<model::nu_size> torque_command = Vector<model::nu_size>::Zero();
 
+    // Initial torso pos
+    double initial_torso_pos_x = mj_data->qpos[0];
+
+
+
+    TelemetryVisualizer visualizer(1000);
+
+    // Initialize your generic plots
+    size_t plot_a_id = visualizer.addPlot("Task 1: Torso velocity (x)", "Target", "Actual", -1.0f, 1.0f);
+    size_t plot_b_id = visualizer.addPlot("Task 2: Hip height (z)(Torso Right)", "Target", "Actual", 0.1f, 0.2f);    
+
+
+
+
     // =========================================================================================
     // SIMULATION LOOP
     // =========================================================================================
@@ -502,6 +697,78 @@ int main(int argc, char** argv) {
         // -------------------------------------------------------------------------------------
         TaskspaceTargets taskspace_targets = TaskspaceTargets::Zero();
 
+        double dt = current_time - last_time;
+        if (dt == 0) dt = 0.0001; 
+
+
+
+        // -------------------------------------------------------------------------------------
+        // Torso forward velocity - Task space target computation
+        double torso_pos_x = mj_data->qpos[0];        
+        double torso_vel_x = mj_data->qvel[0];
+        
+        double torso_vel_x_target = 0.25;
+
+        double torso_pos_x_target = initial_torso_pos_x + torso_vel_x_target * current_time;
+
+        double torso_pos_x_kp = 1000.0; 
+        double torso_pos_x_kv = 100.0;
+
+        double torso_x_control = torso_pos_x_kp * (torso_pos_x_target - torso_pos_x) + torso_pos_x_kv * (torso_vel_x_target - torso_vel_x);
+        
+        // taskspace_targets.row(0) = Eigen::Vector<double, 6> {torso_position_control, 0, 0, 0, 0, 0};        
+        
+        // NOTES: 
+        // 0.05,100,10 worked for one tumble         
+        // 0.5,1000,100 - springs slowly into tumbling but goes crazy after 15 seconds
+
+
+        Eigen::Quaterniond body_quat(qpos(3), qpos(4), qpos(5), qpos(6));
+
+        // --- NEW: Torso Pitch (Ry) Constraint ---
+        // 1. Extract Pitch from body_quat (w, x, y, z), Pitch  = arcsin(2*(wy - zx))
+        double sinp = 2.0 * (body_quat.w() * body_quat.y() - body_quat.z() * body_quat.x());
+        double torso_pitch = std::asin(std::clamp(sinp, -1.0, 1.0));
+        double torso_pitch_vel = state.angular_body_velocity(1); 
+
+        // 2. Critically Damped Pitch Gains
+        double pitch_kp = 400.0;
+        double pitch_kv = 40.0; // 2 * sqrt(400)
+        double pitch_target = 0.0; // Force it to stay level
+        double torso_pitch_control = pitch_kp * (pitch_target - torso_pitch) - pitch_kv * torso_pitch_vel;
+
+
+
+
+
+
+        // --- NEW: Torso Roll (Rx) ---
+        // Extract Roll from body_quat (w, x, y, z), Roll  = atan2(2*(wx + yz),1-2*(x^2 + y^2))
+        double sinr_cosp = 2.0 * (body_quat.w() * body_quat.x() + body_quat.y() * body_quat.z());
+        double cosr_cosp = 1.0 - 2.0 * (body_quat.x() * body_quat.x() + body_quat.y() * body_quat.y());
+        double torso_roll = std::atan2(sinr_cosp, cosr_cosp);
+        double torso_roll_vel = state.angular_body_velocity(0); 
+
+        // Critically Damped Roll Gains
+        double roll_kp = 1000.0;
+        double roll_kv = 100.0; 
+        double torso_roll_control = roll_kp * (0.0 - torso_roll) - roll_kv * torso_roll_vel;
+
+
+
+
+
+
+        // 3. Inject both X-translation and Y-rotation into the Torso Task (Row 0)
+        // Format assumes: [x, y, z, rx, ry, rz]
+        taskspace_targets.row(0) = Eigen::Vector<double, 6> {torso_x_control, 0, 0, torso_roll_control, torso_pitch_control, 0};        
+        // taskspace_targets.row(0) = Eigen::Vector<double, 6> {torso_x_control, 0, 0, torso_roll_control, 0, 0};        
+
+
+
+
+
+
         // -------------------------------------------------------------------------------------
         // Shin velocity and position - Task space target computation
         double tl_shin_angle = mj_data->qpos[tl_knee_idx];        
@@ -509,8 +776,8 @@ int main(int argc, char** argv) {
         double hl_shin_angle = mj_data->qpos[hl_knee_idx];        
         double hr_shin_angle = mj_data->qpos[hr_knee_idx];        
 
-        double dt = current_time - last_time;
-        if (dt == 0) dt = 0.0001; 
+        // double dt = current_time - last_time;
+        // if (dt == 0) dt = 0.0001; 
 
         double tl_angular_velocity = (tl_shin_angle - last_tl_angular_position) / dt;
         double tr_angular_velocity = (tr_shin_angle - last_tr_angular_position) / dt;
@@ -523,7 +790,7 @@ int main(int argc, char** argv) {
         double hr_angular_position_target = initial_hr_angular_position + shin_rot_vel * current_time;
 
         double shin_kp = 800.0; 
-        double shin_kv = 80.0;
+        double shin_kv = 800.0;
 
         double tl_angular_control = shin_kp * (tl_angular_position_target - tl_shin_angle) + shin_kv * (shin_rot_vel - tl_angular_velocity);
         double tr_angular_control = shin_kp * (tr_angular_position_target - tr_shin_angle) + shin_kv * (shin_rot_vel - tr_angular_velocity);
@@ -535,20 +802,30 @@ int main(int argc, char** argv) {
         last_hl_angular_position = hl_shin_angle;
         last_hr_angular_position = hr_shin_angle;
 
-        taskspace_targets.row(1) = Eigen::Vector<double, 6> {0, 0, 0, 0, tl_angular_control, 0};        
-        taskspace_targets.row(2) = Eigen::Vector<double, 6> {0, 0, 0, 0, tr_angular_control, 0};        
-        taskspace_targets.row(3) = Eigen::Vector<double, 6> {0, 0, 0, 0, hl_angular_control, 0};        
-        taskspace_targets.row(4) = Eigen::Vector<double, 6> {0, 0, 0, 0, hr_angular_control, 0};        
+        // taskspace_targets.row(1) = Eigen::Vector<double, 6> {0, 0, 0, 0, tl_angular_control, 0};        
+        // taskspace_targets.row(2) = Eigen::Vector<double, 6> {0, 0, 0, 0, tr_angular_control, 0};        
+        // taskspace_targets.row(3) = Eigen::Vector<double, 6> {0, 0, 0, 0, hl_angular_control, 0};        
+        // taskspace_targets.row(4) = Eigen::Vector<double, 6> {0, 0, 0, 0, hr_angular_control, 0};        
+
+        taskspace_targets.row(1) = Eigen::Vector<double, 6> {0, 0, 0, 0, 0, 0};        
+        taskspace_targets.row(2) = Eigen::Vector<double, 6> {0, 0, 0, 0, 0, 0};        
+        taskspace_targets.row(3) = Eigen::Vector<double, 6> {0, 0, 0, 0, 0, 0};        
+        taskspace_targets.row(4) = Eigen::Vector<double, 6> {0, 0, 0, 0, 0, 0};        
+
         // -------------------------------------------------------------------------------------
 
 
         // -------------------------------------------------------------------------------------
-        // Hip height - task space target computation
+        // Hip height - task space target computation (originally 800,80)
         double thigh_lin_vel = 0.0;
-        double thigh_lin_kp = 100.0 * 8.0; 
-        double thigh_lin_kv = 20.0 * 4.0; 
+        // double thigh_lin_kp = 100.0 * 8.0; 
+        // double thigh_lin_kv = 20.0 * 4.0;
+        
+        double thigh_lin_kp = 800.0; 
+        double thigh_lin_kv = 80.0;
+        
 
-        Eigen::Quaterniond body_quat(qpos(3), qpos(4), qpos(5), qpos(6));
+        // Eigen::Quaterniond body_quat(qpos(3), qpos(4), qpos(5), qpos(6));
         
         int hr_hip = get_qpos_idx("head_right_thigh_joint"); int hr_knee = hr_knee_idx;
         int hl_hip = get_qpos_idx("head_left_thigh_joint");  int hl_knee = hl_knee_idx;
@@ -792,22 +1069,41 @@ int main(int argc, char** argv) {
         // Log linear body velocity
         logger.log("body_x_vel", state.linear_body_velocity[0]);
 
+        // Log linear body velocity
+        logger.log("body_rw", state.body_rotation[0]);
+        logger.log("body_rx", state.body_rotation[1]);
+        logger.log("body_ry", state.body_rotation[2]);
+        logger.log("body_rz", state.body_rotation[3]);
+
         logger.endStep();
 
         // -------------------------------------------------------------------------------------
         // VISUALIZATION & RECORDING
         // -------------------------------------------------------------------------------------
+
+
         if(visualization_timer > visualization_interval) {
+
+            // Feed data using the IDs
+            visualizer.updateData(plot_a_id, current_time, torso_vel_x_target, torso_vel_x);
+            visualizer.updateData(plot_b_id, current_time, initial_trh_linear_position(2), h_tr_kinematic);
+
             visualization_start_time = mj_data->time;
 
             // Call sim window frame object
             mjrRect viewport_full = {0, 0, 0, 0};
             glfwGetFramebufferSize(window, &viewport_full.width, &viewport_full.height);
 
-            // Update and render the mujoco scene with robot
+            // 1. Shrink the Sim Viewport to make room for the Visualizer
+            mjrRect viewport_sim = viewport_full;
+            viewport_sim.width -= (viewport_full.width / 3);
+
+            // 2. Render 3D Scene to the shrunken viewport
             mjv_updateScene(mj_model, mj_data, &opt, &pert, &cam, mjCAT_ALL, &scn);
-            mjr_render(viewport_full, &scn, &con);
-            
+            mjr_render(viewport_sim, &scn, &con); // <--- Use viewport_sim, not viewport_full
+
+            visualizer.render(window, &con);
+
             // Add time at top left of sim graphics window
             std::stringstream ss;
             ss << std::fixed << std::setprecision(3) << "Time: " << mj_data->time << " s";
