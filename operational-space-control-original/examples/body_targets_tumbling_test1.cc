@@ -253,9 +253,119 @@ private:
     }
 };
 // -----------------------------------------------------------------------------------------------------
+/**
+ * @class ProprioceptiveContactEstimator
+ * @brief Estimates Z-axis ground reaction forces using 1D Jacobian projection, 
+ *        supported by Kinematic Overrides for unobservable states.
+ */
+class ProprioceptiveContactEstimator {
+private:
+    double damping_;
+    double force_threshold_high_;
+    double force_threshold_low_;
+    Eigen::VectorXd mask_state_;
+    Eigen::VectorXd estimated_forces_; 
+    int debug_counter_; 
 
+public:
+    ProprioceptiveContactEstimator(int num_wheels, double high_N = 14.0, double low_N = 4.0, double damping = 0.01) 
+        : force_threshold_high_(high_N), force_threshold_low_(low_N), damping_(damping) {
+        mask_state_ = Eigen::VectorXd::Zero(num_wheels);
+        estimated_forces_ = Eigen::VectorXd::Zero(num_wheels);
+        debug_counter_ = 0;
+    }
 
+    Eigen::VectorXd update(const mjModel* m, mjData* d, const std::vector<int>& wheel_site_ids, const Eigen::VectorXd& tau_meas) {
+        int nv = m->nv;
+        int num_wheels = wheel_site_ids.size();
+        
+        bool print_debug = (debug_counter_ % 100 == 0); 
+        debug_counter_++;
 
+        if (print_debug) std::cout << "\n--- Contact Estimator Debug (Tick: " << debug_counter_ << ") ---\n";
+
+        Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> M(nv, nv);
+        mj_fullM(m, M.data(), d->qM);
+        Eigen::VectorXd qacc = Eigen::Map<const Eigen::VectorXd>(d->qacc, nv);
+        
+        Eigen::VectorXd tau_expected = (M * qacc) 
+                                     + Eigen::Map<const Eigen::VectorXd>(d->qfrc_bias, nv) 
+                                     - Eigen::Map<const Eigen::VectorXd>(d->qfrc_passive, nv);
+
+        Eigen::VectorXd tau_dist = tau_expected - tau_meas;
+        int act_dofs = nv - 6; 
+        Eigen::VectorXd tau_dist_act = tau_dist.tail(act_dofs);
+
+        for (int i = 0; i < num_wheels; ++i) {
+            int site_id = wheel_site_ids[i];
+            
+            // 1. 1D Projection Math
+            Eigen::Matrix<double, 3, Eigen::Dynamic, Eigen::RowMajor> jacp(3, nv);
+            mj_jacSite(m, d, jacp.data(), nullptr, site_id);
+            Eigen::VectorXd J_z = jacp.block(2, 6, 1, act_dofs).transpose(); 
+            
+            double z_leverage = J_z.squaredNorm();
+            double dot_product = J_z.dot(tau_dist_act);
+            double raw_fz = 0.0;
+
+            if (z_leverage >= 0.01) { 
+                raw_fz = dot_product / (z_leverage + damping_);
+            }
+
+            // ---------------------------------------------------------
+            // 2. KINEMATIC OVERRIDES
+            // ---------------------------------------------------------
+            // Extract the true global Z position of the wheel site
+            double wheel_z_pos = d->site_xpos[3 * site_id + 2];
+            
+            // Your ellipsoid is 0.0635 in the Z-axis radius.
+            double wheel_radius = 0.0635; 
+            
+            // We assume a flat floor at Z=0 for proprioceptive FK.
+            // (Adjust these tolerances if your chassis sags into the soft floor)
+            double air_tolerance = 0.02;    // 2 cm above resting radius
+            double floor_tolerance = 0.015; // 1.5 cm buffer for squish
+
+            // GUARD A: Skyhook Guard (Wheel is physically lifted off the floor)
+            if (wheel_z_pos > (wheel_radius + air_tolerance)) {
+                raw_fz = 0.0;
+                mask_state_(i) = 0.0;
+            }
+            // GUARD B: Seesaw/Bone Support Guard (Motors are blind, but wheel is at floor level)
+            else if (z_leverage < 0.01 && wheel_z_pos <= (wheel_radius + floor_tolerance)) {
+                raw_fz = force_threshold_high_ + 10.0; // Fake a strong force for the UI
+                mask_state_(i) = 1.0;
+            }
+            // STANDARD OPERATION: Motors have leverage and can 'feel' the ground
+            else {
+                if (raw_fz > force_threshold_high_) {
+                    mask_state_(i) = 1.0;
+                } else if (raw_fz < force_threshold_low_) {
+                    mask_state_(i) = 0.0;
+                }
+            }
+
+            estimated_forces_(i) = raw_fz; 
+
+            if (print_debug && (i == 0 || i == 4)) {
+                std::string label = (i == 0) ? "Torso W[0]" : "Head  W[4]";
+                std::cout << label << " | "
+                          << "Lev: " << std::fixed << std::setprecision(4) << std::setw(6) << z_leverage 
+                          << " | Z-Pos: " << std::setw(6) << wheel_z_pos
+                          << " | Fz Est: " << std::setw(8) << raw_fz 
+                          << " | Mask: " << mask_state_(i) << "\n";
+            }
+        }
+        
+        if (print_debug) std::cout << "--------------------------------------------------\n";
+        
+        return mask_state_;
+    }
+
+    const Eigen::VectorXd& get_estimated_forces() const {
+        return estimated_forces_;
+    }
+};
 
 
 //  Function to estimate hip height kinematically
@@ -387,7 +497,7 @@ int main(int argc, char** argv) {
         std::string ffmpeg_cmd = "ffmpeg -y -f rawvideo -pixel_format rgb24 -video_size " + 
                                     std::to_string(win_width) + "x" + std::to_string(win_height) + 
                                     " -framerate " + std::to_string(fps) + 
-                                    " -i - -vf vflip -c:v h264_nvenc -preset hq -b:v 10M -pix_fmt yuv420p /home/vivek/body_targets_test1.mp4";    
+                                    " -i - -vf vflip -c:v h264_nvenc -preset hq -b:v 10M -pix_fmt yuv420p /home/vivek/osc_contact.mp4";    
         ffmpeg_pipe = popen(ffmpeg_cmd.c_str(), "w");
         if (!ffmpeg_pipe) {
             std::cerr << "Failed to open FFmpeg pipe." << std::endl;
@@ -586,13 +696,21 @@ int main(int argc, char** argv) {
     size_t plot_b_id = visualizer.addPlot("Task 2: Hip height (z)(Torso Right)", "Target", "Actual", 0.1f, 0.2f);    
 
 
+    ProprioceptiveContactEstimator contact_estimator(model::contact_site_ids_size, 14.0, 0.1); // 14/4
 
 
     // =========================================================================================
     // SIMULATION LOOP
     // =========================================================================================
     while(current_time < simulation_time) {
+
         
+
+        Eigen::VectorXd tau_measured = Eigen::Map<const Eigen::VectorXd>(mj_data->qfrc_actuator, mj_model->nv);
+        // Update the estimator. (Pass true for the last argument when you move to physical hardware)
+        Eigen::VectorXd proprioceptive_mask = contact_estimator.update(mj_model, mj_data, wheel_site_ids_ref, tau_measured);
+
+
 
 
         mj_step(mj_model, mj_data);
@@ -1109,16 +1227,45 @@ int main(int argc, char** argv) {
             ss << std::fixed << std::setprecision(3) << "Time: " << mj_data->time << " s";
             mjr_overlay(mjFONT_NORMAL, mjGRID_TOPLEFT, viewport_full, ss.str().c_str(), 0, &con);
 
+
+
+
+            // // Add contact mask of each wheel at bottom left
+            // std::stringstream ss2;
+            // ss2 << "      [PHYS] [MASK]\n--------------------\n";
+            // auto row = [&](std::string label, int idx) {
+            //     ss2 << label << ":   " << raw_physics[idx] << "      " << (contact_check2[idx] > 0.5) << "\n";
+            // };
+            // row("TL_F", 0); row("TL_R", 1); row("TR_F", 2); row("TR_R", 3);
+            // ss2 << "--------------------\n";
+            // row("HL_F", 4); row("HL_R", 5); row("HR_F", 6); row("HR_R", 7);
+            // mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, viewport_full, ss2.str().c_str(), 0, &con);
+
+
+
+
             // Add contact mask of each wheel at bottom left
             std::stringstream ss2;
-            ss2 << "      [PHYS] [MASK]\n--------------------\n";
+            ss2 << std::fixed << std::setprecision(1); // Lock decimal places
+            ss2 << "      [PHYS] [MASK] [PROP] [FORCE (N)]\n----------------------------------------\n";
+            
+            // Retrieve the raw forces from the estimator
+            Eigen::VectorXd current_est_forces = contact_estimator.get_estimated_forces();
+            
             auto row = [&](std::string label, int idx) {
-                ss2 << label << ":   " << raw_physics[idx] << "      " << (contact_check2[idx] > 0.5) << "\n";
+                ss2 << label << ":   " << raw_physics[idx] 
+                    << "      " << (contact_check2[idx] > 0.5) 
+                    << "      " << (proprioceptive_mask[idx] > 0.5) 
+                    << "      " << std::setw(6) << current_est_forces[idx] << "\n";
             };
+            
             row("TL_F", 0); row("TL_R", 1); row("TR_F", 2); row("TR_R", 3);
-            ss2 << "--------------------\n";
+            ss2 << "----------------------------------------\n";
             row("HL_F", 4); row("HL_R", 5); row("HR_F", 6); row("HR_R", 7);
             mjr_overlay(mjFONT_NORMAL, mjGRID_BOTTOMLEFT, viewport_full, ss2.str().c_str(), 0, &con);
+
+
+
 
             // Record video to file if record flag is true
             if (vid_record_flag && ffmpeg_pipe != nullptr) {
