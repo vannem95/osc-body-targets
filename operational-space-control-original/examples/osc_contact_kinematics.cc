@@ -253,10 +253,12 @@ private:
     }
 };
 
+
+
 /**
  * @class ProprioceptiveContactEstimator
- * @brief Estimates Z-axis ground reaction forces using 1D Jacobian projection, 
- *        supported by Kinematic Overrides for unobservable states.
+ * @brief Estimates Z-axis ground reaction forces using 1D Jacobian projection.
+ *        Uses terrain-agnostic relative proprioception to handle kinematic blind spots.
  */
 class ProprioceptiveContactEstimator {
 private:
@@ -268,7 +270,6 @@ private:
     int debug_counter_; 
 
 public:
-    // Fixed: Initialization order matches declaration order to resolve -Wreorder warning
     ProprioceptiveContactEstimator(int num_wheels, double high_N = 14.0, double low_N = 4.0, double damping = 0.01) 
         : damping_(damping), force_threshold_high_(high_N), force_threshold_low_(low_N) {
         mask_state_ = Eigen::VectorXd::Zero(num_wheels);
@@ -288,7 +289,7 @@ public:
         Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> M(nv, nv);
         mj_fullM(m, M.data(), d->qM);
         Eigen::VectorXd qacc = Eigen::Map<const Eigen::VectorXd>(d->qacc, nv);
-        Eigen::VectorXd qvel = Eigen::Map<const Eigen::VectorXd>(d->qvel, nv); // Map velocities for the dynamic guard
+        Eigen::VectorXd qvel = Eigen::Map<const Eigen::VectorXd>(d->qvel, nv); 
         
         Eigen::VectorXd tau_expected = (M * qacc) 
                                      + Eigen::Map<const Eigen::VectorXd>(d->qfrc_bias, nv) 
@@ -318,24 +319,35 @@ public:
             }
 
             // ---------------------------------------------------------
-            // 2. KINEMATIC OVERRIDES
+            // 2. KINEMATIC OVERRIDES (Terrain-Agnostic)
             // ---------------------------------------------------------
-            double wheel_z_pos = d->site_xpos[3 * site_id + 2];
-            double wheel_radius = 0.0635; 
-            double air_tolerance = 0.02;    
-            double floor_tolerance = 0.015; 
+            // Traverse the MuJoCo physics tree dynamically to find the knee joint for this specific wheel.
+            int body_wheel = m->site_bodyid[site_id];
+            int body_shin = m->body_parentid[body_wheel];
+            int jnt_knee = m->body_jntadr[body_shin];
 
-            // GUARD A: Skyhook Guard
-            if (wheel_z_pos > (wheel_radius + air_tolerance)) {
+            // Extract the gravity-aligned vertical positions.
+            double wheel_z = d->site_xpos[3 * site_id + 2];
+            double knee_z = d->xanchor[3 * jnt_knee + 2]; 
+
+            // GUARD A: Skyhook Guard 
+            // If the wheel is more than 2cm higher than the knee, it is pointing at the ceiling or tucked.
+            // It cannot possibly be bearing weight against the ground.
+            if (wheel_z > (knee_z + 0.02)) {
                 raw_fz = 0.0;
                 mask_state_(i) = 0.0;
             }
-            // GUARD B: Seesaw/Bone Support Guard
-            else if (z_leverage < 0.01 && wheel_z_pos <= (wheel_radius + floor_tolerance)) {
-                raw_fz = force_threshold_high_ + 10.0; 
-                mask_state_(i) = 1.0;
+            // GUARD B: Singularity Hold
+            // If the motors lose mechanical leverage (e.g., shin is perfectly horizontal), the sensors go blind.
+            // Instead of guessing where the floor is, we freeze the contact mask to whatever it was 1 tick ago.
+            else if (z_leverage < 0.01) {
+                if (mask_state_(i) > 0.5) {
+                    raw_fz = force_threshold_high_ + 5.0; // Keep rendering a force for the UI
+                } else {
+                    raw_fz = 0.0;
+                }
             }
-            // STANDARD OPERATION
+            // STANDARD OPERATION: The leg is angled downward and has torque leverage.
             else {
                 if (raw_fz > force_threshold_high_) {
                     mask_state_(i) = 1.0;
@@ -350,7 +362,8 @@ public:
                 std::string label = (i == 0) ? "Torso W[0]" : "Head  W[4]";
                 std::cout << label << " | "
                           << "Lev: " << std::fixed << std::setprecision(4) << std::setw(6) << z_leverage 
-                          << " | Z-Pos: " << std::setw(6) << wheel_z_pos
+                          << " | WheelZ: " << std::setw(6) << wheel_z
+                          << " | KneeZ: " << std::setw(6) << knee_z
                           << " | Fz Est: " << std::setw(8) << raw_fz 
                           << " | Mask: " << mask_state_(i) << "\n";
             }
@@ -373,31 +386,25 @@ public:
                 int body_j = m->site_bodyid[site_j];
                 int shin_j = m->body_parentid[body_j];
 
-                // If both wheels share the same shin and claim contact...
                 if (shin_i == shin_j) {
                     
-                    // 1. Calculate the exact vertical velocity (Vz = Jz * qvel) for Wheel I
                     Eigen::Matrix<double, 3, Eigen::Dynamic, Eigen::RowMajor> jacp_i(3, nv);
                     mj_jacSite(m, d, jacp_i.data(), nullptr, site_i);
-                    Eigen::VectorXd J_z_full_i = jacp_i.row(2).transpose();
-                    double v_z_i = J_z_full_i.dot(qvel);
+                    double v_z_i = jacp_i.row(2).dot(qvel);
                     
-                    // 2. Calculate the exact vertical velocity for Wheel J
                     Eigen::Matrix<double, 3, Eigen::Dynamic, Eigen::RowMajor> jacp_j(3, nv);
                     mj_jacSite(m, d, jacp_j.data(), nullptr, site_j);
-                    Eigen::VectorXd J_z_full_j = jacp_j.row(2).transpose();
-                    double v_z_j = J_z_full_j.dot(qvel);
+                    double v_z_j = jacp_j.row(2).dot(qvel);
                     
-                    // If the leg is actively rotating (velocities differ significantly)
-                    if (std::abs(v_z_i - v_z_j) > 0.05) { // 5 cm/s difference threshold
-                        // The wheel plunging downward (more negative velocity) wins the mask
+                    // VELOCITY TIE-BREAKER: Momentum decides which wheel claims the ground.
+                    if (std::abs(v_z_i - v_z_j) > 0.05) { 
                         if (v_z_i < v_z_j) {
                             mask_state_(j) = 0.0; 
                         } else {
                             mask_state_(i) = 0.0;
                         }
                     } 
-                    // Fallback: If standing still, trust the Z-position
+                    // POSITION TIE-BREAKER: Gravity-aligned depth check.
                     else {
                         if (d->site_xpos[3 * site_i + 2] < d->site_xpos[3 * site_j + 2]) {
                             mask_state_(j) = 0.0; 
@@ -418,7 +425,6 @@ public:
         return estimated_forces_;
     }
 };
-
 
 
 
@@ -860,7 +866,8 @@ int main(int argc, char** argv) {
         state.body_rotation = qpos(Eigen::seqN(3, 4));
         state.linear_body_velocity = qvel(Eigen::seqN(0, 3));
         state.angular_body_velocity = qvel(Eigen::seqN(3, 3));
-        state.contact_mask = proprioceptive_mask;
+        state.contact_mask = contact_check2;
+        // state.contact_mask = proprioceptive_mask;
         
         controller.update_state(state);
 

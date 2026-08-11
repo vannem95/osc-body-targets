@@ -191,3 +191,23 @@ cc_binary(
         "@bazel_tools//tools/cpp/runfiles",
     ],
 )
+
+
+cc_binary(
+    name = "osc_contact_kinematics",
+    srcs = ["osc_contact_kinematics.cc"],
+    data = ["@mujoco-models//:walter_sr"],
+    deps = [
+        "//operational-space-control/walter_sr:operational_space_controller",
+        "//operational-space-control/walter_sr:aliases",
+        "//operational-space-control/walter_sr:constants",
+        "//operational-space-control/walter_sr:containers",
+        "@mujoco-bazel//:mujoco",
+        "@eigen//:eigen",
+        "@glfw-bazel//:glfw",
+        "@abseil-cpp//absl/log:absl_check",
+        "@abseil-cpp//absl/status:status",
+        "@rules_cc//cc/runfiles:runfiles",
+        "@bazel_tools//tools/cpp/runfiles",
+    ],
+)
